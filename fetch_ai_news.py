@@ -5,47 +5,82 @@ import sys
 from datetime import datetime, timedelta, timezone
 from openai import OpenAI
 
-# ── Credentials (set as env vars / GitHub Secrets) ──────────────────────────
+# ── Credentials ──────────────────────────────────────────────────────────────
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID   = os.environ.get("TELEGRAM_CHAT_ID")
 EURI_API_KEY       = os.environ.get("EURI_API_KEY")
 
-# ── EURI client (OpenAI-compatible) ─────────────────────────────────────────
 euri_client = OpenAI(
     api_key=EURI_API_KEY,
     base_url="https://api.euron.one/api/v1/euri",
 )
 
-# ── RSS feed sources ─────────────────────────────────────────────────────────
+# ── RSS feeds — focused on model releases, frameworks, research ───────────────
 RSS_FEEDS = [
-    {"name": "VentureBeat AI",   "url": "https://venturebeat.com/category/ai/feed/"},
-    {"name": "TechCrunch AI",    "url": "https://techcrunch.com/category/artificial-intelligence/feed/"},
-    {"name": "The Decoder",      "url": "https://the-decoder.com/feed/"},
-    {"name": "MIT Tech Review",  "url": "https://www.technologyreview.com/feed/"},
-    {"name": "HuggingFace Blog", "url": "https://huggingface.co/blog/feed.xml"},
-    {"name": "Google DeepMind",  "url": "https://deepmind.google/blog/rss.xml"},
-    {"name": "Anthropic",        "url": "https://www.anthropic.com/rss.xml"},
-    {"name": "OpenAI",           "url": "https://openai.com/news/rss.xml"},
-    {"name": "Wired AI",         "url": "https://www.wired.com/feed/category/artificial-intelligence/latest/rss"},
-    {"name": "Ars Technica",     "url": "https://feeds.arstechnica.com/arstechnica/index"},
-    {"name": "AI Business",      "url": "https://aibusiness.com/rss.xml"},
-    {"name": "InfoQ AI",         "url": "https://feed.infoq.com/"},
+    # Official lab blogs — first to announce new models
+    {"name": "OpenAI",             "url": "https://openai.com/news/rss.xml"},
+    {"name": "Anthropic",          "url": "https://www.anthropic.com/rss.xml"},
+    {"name": "Google DeepMind",    "url": "https://deepmind.google/blog/rss.xml"},
+    {"name": "Meta AI",            "url": "https://ai.meta.com/blog/feed/"},
+    {"name": "Microsoft AI",       "url": "https://blogs.microsoft.com/ai/feed/"},
+    {"name": "HuggingFace Blog",   "url": "https://huggingface.co/blog/feed.xml"},
+    {"name": "Mistral AI",         "url": "https://mistral.ai/news/rss"},
+
+    # Community — fastest for open-source model & framework drops
+    {"name": "Reddit LocalLLaMA",  "url": "https://www.reddit.com/r/LocalLLaMA/.rss"},
+    {"name": "Reddit MachineLearning", "url": "https://www.reddit.com/r/MachineLearning/.rss"},
+    {"name": "Hacker News AI",     "url": "https://hnrss.org/newest?q=LLM+OR+AI+model+OR+open+source+AI&points=15"},
+
+    # Research
+    {"name": "Papers With Code",   "url": "https://paperswithcode.com/rss"},
+    {"name": "Arxiv CS.AI",        "url": "https://arxiv.org/rss/cs.AI"},
+    {"name": "Arxiv CS.LG",        "url": "https://arxiv.org/rss/cs.LG"},
+
+    # News & analysis
+    {"name": "The Decoder",        "url": "https://the-decoder.com/feed/"},
+    {"name": "VentureBeat AI",     "url": "https://venturebeat.com/category/ai/feed/"},
+    {"name": "TechCrunch AI",      "url": "https://techcrunch.com/category/artificial-intelligence/feed/"},
 ]
 
-AI_KEYWORDS = [
-    "ai", "artificial intelligence", "machine learning", "deep learning",
-    "llm", "gpt", "gemini", "claude", "chatgpt", "openai", "anthropic",
-    "neural network", "generative", "transformer", "model", "agent",
-    "automation", "robotics", "computer vision", "nlp", "diffusion",
-    "multimodal", "foundation model", "fine-tuning", "inference",
+# Keywords that signal a real AI tech update (model/framework/tool/research)
+RELEASE_KEYWORDS = [
+    # Model releases
+    "releases", "launched", "launches", "introduces", "announcing", "announced",
+    "new model", "open source", "open-source", "weights", "checkpoint",
+    # Model names — catch new versions
+    "llama", "mistral", "gemini", "gpt", "claude", "phi", "qwen", "deepseek",
+    "grok", "falcon", "mixtral", "command-r", "stable diffusion", "flux",
+    "whisper", "sora", "dall-e", "midjourney", "runway",
+    # Frameworks & tools
+    "langchain", "llamaindex", "llama index", "crewai", "autogen", "dspy",
+    "ollama", "vllm", "transformers", "pytorch", "jax", "tensorflow",
+    "hugging face", "huggingface", "litellm", "haystack", "semantic kernel",
+    "langgraph", "instructor", "guidance", "outlines",
+    # Research signals
+    "benchmark", "state-of-the-art", "sota", "beats", "outperforms",
+    "paper", "arxiv", "research", "breakthrough", "multimodal", "reasoning",
+    "agentic", "rag", "fine-tun", "quantiz", "lora", "rlhf",
+]
+
+# Noise to filter out (business news, not tech releases)
+NOISE_KEYWORDS = [
+    "funding", "raises $", "valuation", "ipo", "acquisition", "lawsuit",
+    "regulation", "policy", "layoff", "fired", "ceo", "hired",
+    "stock", "revenue", "quarterly", "earnings",
 ]
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
-
-def is_ai_related(title: str, summary: str = "") -> bool:
+def is_relevant(title: str, summary: str = "") -> bool:
     text = (title + " " + summary).lower()
-    return any(kw in text for kw in AI_KEYWORDS)
+    if any(noise in text for noise in NOISE_KEYWORDS):
+        return False
+    return any(kw in text for kw in RELEASE_KEYWORDS)
+
+
+def relevance_score(title: str, summary: str = "") -> int:
+    """Higher = more relevant. Used to rank articles."""
+    text = (title + " " + summary).lower()
+    return sum(1 for kw in RELEASE_KEYWORDS if kw in text)
 
 
 def parse_time(entry) -> datetime | None:
@@ -60,7 +95,7 @@ def escape_html(text: str) -> str:
     return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
-# ── Fetch articles from RSS ──────────────────────────────────────────────────
+# ── Fetch & filter articles ───────────────────────────────────────────────────
 
 def fetch_recent_articles(hours: int = 13) -> list[dict]:
     cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
@@ -70,7 +105,7 @@ def fetch_recent_articles(hours: int = 13) -> list[dict]:
     for feed in RSS_FEEDS:
         try:
             parsed = feedparser.parse(feed["url"], request_headers={"User-Agent": "Mozilla/5.0"})
-            for entry in parsed.entries[:8]:
+            for entry in parsed.entries[:10]:
                 title    = entry.get("title", "").strip()
                 link     = entry.get("link", "")
                 summary  = entry.get("summary", "")
@@ -80,7 +115,7 @@ def fetch_recent_articles(hours: int = 13) -> list[dict]:
                     continue
                 if pub_time and pub_time < cutoff:
                     continue
-                if feed["name"] in ("Ars Technica", "InfoQ AI") and not is_ai_related(title, summary):
+                if not is_relevant(title, summary):
                     continue
 
                 seen_titles.add(title)
@@ -89,22 +124,25 @@ def fetch_recent_articles(hours: int = 13) -> list[dict]:
                     "title":     title,
                     "link":      link,
                     "published": pub_time,
+                    "score":     relevance_score(title, summary),
                 })
         except Exception as e:
             print(f"[WARN] {feed['name']}: {e}")
 
-    articles.sort(
-        key=lambda x: x["published"] or datetime.min.replace(tzinfo=timezone.utc),
-        reverse=True,
-    )
+    # Sort: relevance score first, then recency
+    articles.sort(key=lambda x: (
+        x["score"],
+        x["published"] or datetime.min.replace(tzinfo=timezone.utc),
+    ), reverse=True)
+
     return articles[:12]
 
 
-# ── AI-generated digest via EURI ─────────────────────────────────────────────
+# ── AI digest via EURI ────────────────────────────────────────────────────────
 
 def generate_ai_digest(articles: list[dict], period: str) -> str:
     if not articles:
-        return "No significant AI news in the last 13 hours."
+        return ""
 
     headlines = "\n".join(
         f"{i}. [{art['source']}] {art['title']}"
@@ -112,22 +150,25 @@ def generate_ai_digest(articles: list[dict], period: str) -> str:
     )
 
     prompt = (
-        f"You are an AI news analyst. Below are today's {period.split()[0].lower()} AI headlines.\n\n"
+        f"You are an AI engineer who tracks every new model release, framework update, "
+        f"and research breakthrough. Below are today's {period.split()[0].lower()} headlines.\n\n"
         f"{headlines}\n\n"
-        "Write a sharp, engaging digest in 4–5 bullet points (use • emoji). "
-        "Each bullet = one key insight or trend from the headlines. "
-        "No fluff. Be specific. Max 180 words total."
+        "Write 4–5 bullet points (• emoji) covering:\n"
+        "- Which new models or versions dropped\n"
+        "- Which frameworks or tools got updated\n"
+        "- Any research breakthroughs worth noting\n"
+        "Be specific (include model names, version numbers, benchmarks). Max 200 words."
     )
 
     try:
         response = euri_client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[
-                {"role": "system", "content": "You are a concise AI news analyst writing for a tech-savvy audience."},
+                {"role": "system", "content": "You are a precise AI tech analyst. No fluff, only facts."},
                 {"role": "user",   "content": prompt},
             ],
-            max_tokens=300,
-            temperature=0.65,
+            max_tokens=350,
+            temperature=0.5,
         )
         return response.choices[0].message.content.strip()
     except Exception as e:
@@ -137,42 +178,57 @@ def generate_ai_digest(articles: list[dict], period: str) -> str:
 
 # ── Format Telegram message ───────────────────────────────────────────────────
 
+# Category tags for article labels
+def category_tag(title: str, source: str) -> str:
+    t = title.lower()
+    if any(k in t for k in ["releases", "launched", "introduces", "new model", "weights"]):
+        return "🆕 New Release"
+    if any(k in t for k in ["langchain", "llamaindex", "crewai", "autogen", "ollama", "vllm",
+                             "transformers", "pytorch", "framework", "library", "tool"]):
+        return "🛠 Framework/Tool"
+    if any(k in t for k in ["paper", "arxiv", "benchmark", "research", "sota", "outperforms"]):
+        return "📄 Research"
+    if source in ("Reddit LocalLLaMA", "Reddit MachineLearning", "Hacker News AI"):
+        return "💬 Community"
+    return "📰 News"
+
+
 def format_message(articles: list[dict], period: str, ai_digest: str) -> str:
     now_ist  = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
     date_str = now_ist.strftime("%d %B %Y  |  %I:%M %p IST")
 
     lines = [
-        f"<b>🤖 Daily AI News — {period}</b>",
+        f"<b>🤖 AI Tech Update — {period}</b>",
         f"📅 {date_str}",
+        "<i>Models • Frameworks • Research • Tools</i>",
         "━━━━━━━━━━━━━━━━━━━━━━",
     ]
 
-    # AI-generated summary block
     if ai_digest:
-        lines += ["", "<b>🧠 AI Digest (powered by gpt-4o-mini)</b>", ""]
+        lines += ["", "<b>🧠 Today's AI Highlights</b>", ""]
         for line in ai_digest.splitlines():
             lines.append(escape_html(line))
         lines += ["", "━━━━━━━━━━━━━━━━━━━━━━"]
 
-    # Article links
     if not articles:
-        lines.append("\nNo new AI news in the last 13 hours. Check back soon! 🔍")
+        lines.append("\nNo major AI releases in the last 13 hours. Check back soon! 🔍")
     else:
-        lines += ["", "<b>📰 Top Headlines</b>", ""]
+        lines += ["", "<b>🔗 Latest Updates</b>", ""]
         for i, art in enumerate(articles, 1):
             title  = escape_html(art["title"])
             source = escape_html(art["source"])
+            tag    = category_tag(art["title"], art["source"])
             link   = art["link"]
             if link:
                 lines.append(f'{i}. <a href="{link}"><b>{title}</b></a>')
             else:
                 lines.append(f"{i}. <b>{title}</b>")
-            lines.append(f"   📌 {source}")
+            lines.append(f"   {tag}  •  📌 {source}")
             lines.append("")
 
     lines += [
         "━━━━━━━━━━━━━━━━━━━━━━",
-        "🚀 Stay ahead in AI! Next update in 12 hours.",
+        "⚡ Next update in 12 hours",
     ]
     return "\n".join(lines)
 
@@ -205,12 +261,12 @@ def send_telegram(text: str) -> None:
 
 if __name__ == "__main__":
     period = sys.argv[1] if len(sys.argv) > 1 else "Update"
-    print(f"Fetching AI news ({period}) ...")
+    print(f"Fetching AI tech news ({period}) ...")
 
     articles = fetch_recent_articles(hours=13)
-    print(f"Found {len(articles)} articles.")
+    print(f"Found {len(articles)} relevant articles.")
 
-    print("Generating AI digest via EURI ...")
+    print("Generating digest via EURI ...")
     ai_digest = generate_ai_digest(articles, period)
 
     message = format_message(articles, period, ai_digest)
