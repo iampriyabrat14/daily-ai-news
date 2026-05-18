@@ -195,41 +195,61 @@ def category_tag(title: str, source: str) -> str:
 
 def format_message(articles: list[dict], period: str, ai_digest: str) -> str:
     now_ist  = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
-    date_str = now_ist.strftime("%d %B %Y  |  %I:%M %p IST")
+    date_str = now_ist.strftime("%d %B %Y  •  %I:%M %p IST")
 
+    # ── Header ────────────────────────────────────────────────────────────────
     lines = [
-        f"<b>🤖 AI Tech Update — {period}</b>",
-        f"📅 {date_str}",
-        "<i>Models • Frameworks • Research • Tools</i>",
-        "━━━━━━━━━━━━━━━━━━━━━━",
+        "╔══════════════════════════╗",
+        f"   🤖  <b>Daily AI Tech Digest</b>",
+        f"   {period}",
+        "╚══════════════════════════╝",
+        f"📅  <i>{date_str}</i>",
+        "",
     ]
 
+    # ── AI Summary ────────────────────────────────────────────────────────────
     if ai_digest:
-        lines += ["", "<b>🧠 Today's AI Highlights</b>", ""]
+        lines += [
+            "┌─────────────────────────┐",
+            "  🧠  <b>Key Highlights</b>",
+            "└─────────────────────────┘",
+            "",
+        ]
         for line in ai_digest.splitlines():
-            lines.append(escape_html(line))
-        lines += ["", "━━━━━━━━━━━━━━━━━━━━━━"]
+            if line.strip():
+                lines.append(escape_html(line))
+        lines += [""]
 
+    # ── Articles ──────────────────────────────────────────────────────────────
     if not articles:
-        lines.append("\nNo major AI releases in the last 13 hours. Check back soon! 🔍")
+        lines.append("🔍  No major AI updates in the last 13 hours. Check back soon!")
     else:
-        lines += ["", "<b>🔗 Latest Updates</b>", ""]
+        lines += [
+            "┌─────────────────────────┐",
+            "  🔗  <b>Latest Updates</b>",
+            "└─────────────────────────┘",
+            "",
+        ]
         for i, art in enumerate(articles, 1):
             title  = escape_html(art["title"])
             source = escape_html(art["source"])
             tag    = category_tag(art["title"], art["source"])
             link   = art["link"]
+
             if link:
-                lines.append(f'{i}. <a href="{link}"><b>{title}</b></a>')
+                lines.append(f'<b>{i}.</b>  <a href="{link}">{title}</a>')
             else:
-                lines.append(f"{i}. <b>{title}</b>")
-            lines.append(f"   {tag}  •  📌 {source}")
+                lines.append(f"<b>{i}.</b>  {title}")
+            lines.append(f"      {tag}  │  <i>{source}</i>")
             lines.append("")
 
+    # ── Footer ────────────────────────────────────────────────────────────────
     lines += [
-        "━━━━━━━━━━━━━━━━━━━━━━",
-        "⚡ Next update in 12 hours",
+        "─────────────────────────────",
+        "⚡  Next update in <b>12 hours</b>",
+        "─────────────────────────────",
     ]
+
     return "\n".join(lines)
 
 
