@@ -277,6 +277,97 @@ def send_telegram(text: str) -> None:
     print("✅ Message sent to Telegram.")
 
 
+# ── Save digest to repo as Markdown ───────────────────────────────────────────
+
+def slugify_period(period: str) -> str:
+    return "".join(c for c in period if c.isalpha()).lower() or "update"
+
+
+def save_markdown(articles: list[dict], period: str, ai_digest: str) -> str:
+    now_ist = datetime.now(timezone.utc) + timedelta(hours=5, minutes=30)
+    date_str = now_ist.strftime("%d %B %Y  •  %I:%M %p IST")
+
+    lines = [
+        f"# 🤖 Daily AI Tech Digest — {period}",
+        "",
+        f"_{date_str}_",
+        "",
+    ]
+
+    if ai_digest:
+        lines += ["## 🧠 Key Highlights", "", ai_digest, ""]
+
+    lines += ["## 🔗 Latest Updates", ""]
+    if not articles:
+        lines.append("No major AI updates in the last 13 hours.")
+    else:
+        for i, art in enumerate(articles, 1):
+            tag = category_tag(art["title"], art["source"])
+            if art["link"]:
+                lines.append(f"{i}. [{art['title']}]({art['link']}) — {tag} · *{art['source']}*")
+            else:
+                lines.append(f"{i}. {art['title']} — {tag} · *{art['source']}*")
+    lines.append("")
+
+    year, month, day = now_ist.strftime("%Y"), now_ist.strftime("%m"), now_ist.strftime("%Y-%m-%d")
+    dir_path = os.path.join("digests", year, month)
+    os.makedirs(dir_path, exist_ok=True)
+    file_path = os.path.join(dir_path, f"{day}-{slugify_period(period)}.md")
+
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines))
+
+    print(f"📝 Saved digest to {file_path}")
+    return file_path
+
+
+def update_readme_index() -> None:
+    digests_root = "digests"
+    if not os.path.isdir(digests_root):
+        return
+
+    entries: list[tuple[str, str]] = []
+    for year in sorted(os.listdir(digests_root), reverse=True):
+        year_path = os.path.join(digests_root, year)
+        if not os.path.isdir(year_path):
+            continue
+        for month in sorted(os.listdir(year_path), reverse=True):
+            month_path = os.path.join(year_path, month)
+            if not os.path.isdir(month_path):
+                continue
+            for fname in sorted(os.listdir(month_path), reverse=True):
+                if fname.endswith(".md"):
+                    rel_path = f"{digests_root}/{year}/{month}/{fname}"
+                    label = fname.replace(".md", "")
+                    entries.append((label, rel_path))
+
+    start_marker = "<!-- DIGEST_INDEX_START -->"
+    end_marker = "<!-- DIGEST_INDEX_END -->"
+    table_lines = [start_marker, "", "## 📚 Digest Archive", ""]
+    if entries:
+        for label, rel_path in entries[:60]:
+            table_lines.append(f"- [{label}]({rel_path})")
+    else:
+        table_lines.append("_No digests yet._")
+    table_lines += ["", end_marker]
+    block = "\n".join(table_lines)
+
+    with open("README.md", "r", encoding="utf-8") as f:
+        readme = f.read()
+
+    if start_marker in readme and end_marker in readme:
+        pre = readme.split(start_marker)[0]
+        post = readme.split(end_marker)[1]
+        readme = pre + block + post
+    else:
+        readme = readme.rstrip() + "\n\n" + block + "\n"
+
+    with open("README.md", "w", encoding="utf-8") as f:
+        f.write(readme)
+
+    print("📇 Updated README digest index.")
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -291,3 +382,6 @@ if __name__ == "__main__":
 
     message = format_message(articles, period, ai_digest)
     send_telegram(message)
+
+    save_markdown(articles, period, ai_digest)
+    update_readme_index()

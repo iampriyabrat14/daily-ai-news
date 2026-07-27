@@ -80,3 +80,15 @@ set TELEGRAM_BOT_TOKEN=your_token
 set TELEGRAM_CHAT_ID=your_chat_id
 python fetch_ai_news.py "Test 🧪"
 ```
+
+---
+
+Every run also saves the digest as a Markdown file under `digests/YYYY/MM/`, and the workflow commits it back to this repo — so this README's archive section and the commit history both grow daily.
+
+<!-- DIGEST_INDEX_START -->
+
+## 📚 Digest Archive
+
+_No digests yet._
+
+<!-- DIGEST_INDEX_END -->

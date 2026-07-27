@@ -6,6 +6,9 @@ on:
     - cron: '30 13 * * *'  # 07:00 PM IST  (UTC+5:30 → UTC 13:30)
   workflow_dispatch:        # Manual trigger for testing
 
+permissions:
+  contents: write
+
 jobs:
   send-ai-news:
     runs-on: ubuntu-latest
@@ -39,3 +42,12 @@ jobs:
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
           EURI_API_KEY: ${{ secrets.EURI_API_KEY }}
         run: python fetch_ai_news.py "${{ steps.period.outputs.label }}"
+
+      - name: Commit digest to repo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add digests README.md
+          git diff --staged --quiet && echo "No changes to commit" && exit 0
+          git commit -m "docs: add ${{ steps.period.outputs.label }} digest for $(date -u +'%Y-%m-%d')"
+          git push
