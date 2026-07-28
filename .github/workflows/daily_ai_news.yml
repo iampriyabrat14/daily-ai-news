@@ -45,8 +45,8 @@ jobs:
 
       - name: Commit digest to repo
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "iampriyabrat14"
+          git config user.email "datasc521@gmail.com"
           git add digests README.md
           git diff --staged --quiet && echo "No changes to commit" && exit 0
           git commit -m "docs: add ${{ steps.period.outputs.label }} digest for $(date -u +'%Y-%m-%d')"
