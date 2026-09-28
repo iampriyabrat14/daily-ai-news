@@ -89,6 +89,7 @@ Every run also saves the digest as a Markdown file under `digests/YYYY/MM/`, and
 
 ## 📚 Digest Archive
 
+- [2026-09-28-morning](digests/2026/09/2026-09-28-morning.md)
 - [2026-09-27-morning](digests/2026/09/2026-09-27-morning.md)
 - [2026-09-27-evening](digests/2026/09/2026-09-27-evening.md)
 - [2026-09-26-morning](digests/2026/09/2026-09-26-morning.md)
@@ -148,6 +149,5 @@ Every run also saves the digest as a Markdown file under `digests/YYYY/MM/`, and
 - [2026-08-28-evening](digests/2026/08/2026-08-28-evening.md)
 - [2026-08-26-morning](digests/2026/08/2026-08-26-morning.md)
 - [2026-08-26-evening](digests/2026/08/2026-08-26-evening.md)
-- [2026-08-25-morning](digests/2026/08/2026-08-25-morning.md)
 
 <!-- DIGEST_INDEX_END -->
